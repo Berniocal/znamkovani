@@ -121,11 +121,17 @@
           </div>
         </div>
 
+        <div class="threshold-box" style="margin-top:15px;max-width:260px">
+          <label for="stepSize">Nejmenší krok hodnocení</label>
+          <input id="stepSize" type="number" min="0.01" step="0.01" value="0.5">
+          <small>Napiš vlastní nejmenší krok, např. 1; 0,5; 0,25 nebo 0,1 bodu.</small>
+        </div>
+
         <label class="switch-row">
           <input id="useMinus" type="checkbox" checked>
           <span>
             <strong>Používat mínusové známky</strong><br>
-            <span class="mini">Nejbližší půlbod k hranici dostane 1−, 2−, 3− nebo 4−.</span>
+            <span class="mini">Nejbližší dostupný bodový krok k hranici dostane 1−, 2−, 3− nebo 4−.</span>
           </span>
         </label>
 
@@ -156,7 +162,7 @@
     <div id="status" class="status" aria-live="polite"></div>
     <p class="note">
       Tabulka se kopíruje jako formátovaná HTML tabulka, takže se při vložení do Wordu zachová jako skutečná tabulka.
-      Body se vyhodnocují po 0,5 bodu.
+      Body se vyhodnocují podle zvoleného nejmenšího kroku.
     </p>
   </section>
 </main>
@@ -168,7 +174,8 @@ const DEFAULTS = {
   t2: 67,
   t3: 49,
   t4: 33,
-  useMinus: true
+  useMinus: true,
+  stepSize: 0.5
 };
 
 const STORAGE_KEY = 'gradeTableSettingsV1';
@@ -191,7 +198,8 @@ function saveSettings(){
     t2: parseFloat(el('t2').value),
     t3: parseFloat(el('t3').value),
     t4: parseFloat(el('t4').value),
-    useMinus: el('useMinus').checked
+    useMinus: el('useMinus').checked,
+    stepSize: parseFloat(el('stepSize').value)
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
@@ -203,6 +211,7 @@ function putSettings(s){
   el('t3').value = s.t3;
   el('t4').value = s.t4;
   el('useMinus').checked = s.useMinus;
+  el('stepSize').value = String(s.stepSize ?? DEFAULTS.stepSize);
 }
 
 function fmtNum(n){
@@ -215,8 +224,8 @@ function fmtPct(n){
   return (Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',')) + ' %';
 }
 
-function nearestHalf(points){
-  return Math.round(points * 2) / 2;
+function nearestStep(points, step){
+  return Math.round(points / step) * step;
 }
 
 function validateThresholds(t){
@@ -231,16 +240,17 @@ function getConfig(){
     t2: parseFloat(el('t2').value),
     t3: parseFloat(el('t3').value),
     t4: parseFloat(el('t4').value),
-    useMinus: el('useMinus').checked
+    useMinus: el('useMinus').checked,
+    stepSize: parseFloat(el('stepSize').value) || DEFAULTS.stepSize
   };
 }
 
 function minusScores(cfg){
   return {
-    '1−': nearestHalf(cfg.max * cfg.t1 / 100),
-    '2−': nearestHalf(cfg.max * cfg.t2 / 100),
-    '3−': nearestHalf(cfg.max * cfg.t3 / 100),
-    '4−': nearestHalf(cfg.max * cfg.t4 / 100)
+    '1−': nearestStep(cfg.max * cfg.t1 / 100, cfg.stepSize),
+    '2−': nearestStep(cfg.max * cfg.t2 / 100, cfg.stepSize),
+    '3−': nearestStep(cfg.max * cfg.t3 / 100, cfg.stepSize),
+    '4−': nearestStep(cfg.max * cfg.t4 / 100, cfg.stepSize)
   };
 }
 
@@ -291,6 +301,12 @@ function generate(){
     return;
   }
 
+  if(!Number.isFinite(cfg.stepSize) || cfg.stepSize <= 0){
+    status.style.color = '#b42318';
+    status.textContent = 'Nejmenší krok hodnocení musí být větší než 0.';
+    return;
+  }
+
   if(!validateThresholds(cfg)){
     status.style.color = '#b42318';
     status.textContent = 'Hranice musí být sestupně: 1 > 2 > 3 > 4.';
@@ -303,15 +319,18 @@ function generate(){
 
   const buckets = Object.fromEntries(grades.map(g => [g, []]));
 
-  for(let score = 0; score <= cfg.max + 1e-9; score += 0.5){
-    const s = Math.round(score * 2) / 2;
-    if(s > cfg.max + 1e-9) break;
-    const g = gradeFor(s, cfg);
-    if(buckets[g]) buckets[g].push(s);
+  const step = cfg.stepSize;
+
+  for(let score = 0; score <= cfg.max + 1e-9; score += step){
+    const s = Math.round((score / step)) * step;
+    const rounded = Math.round(s * 1000000) / 1000000;
+    if(rounded > cfg.max + 1e-9) break;
+    const g = gradeFor(rounded, cfg);
+    if(buckets[g]) buckets[g].push(rounded);
   }
 
-  // Pokud maximum není násobkem 0,5, přidáme i přesné maximum.
-  if(Math.abs((cfg.max * 2) - Math.round(cfg.max * 2)) > 1e-9){
+  // Pokud maximum není násobkem zvoleného kroku, přidáme i přesné maximum.
+  if(Math.abs((cfg.max / step) - Math.round(cfg.max / step)) > 1e-9){
     const g = gradeFor(cfg.max, cfg);
     if(buckets[g] && !buckets[g].includes(cfg.max)) buckets[g].push(cfg.max);
   }
@@ -413,6 +432,7 @@ el('resetBtn').addEventListener('click', () => {
   el(id).addEventListener('change', generate);
 });
 el('useMinus').addEventListener('change', generate);
+el('stepSize').addEventListener('change', generate);
 
 const stored = loadSettings();
 putSettings(stored);
