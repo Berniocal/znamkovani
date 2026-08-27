@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Převod bodů na známky</title>
+  <style>
+    :root{
+      --bg:#f4f6fa;
+      --card:#fff;
+      --text:#172033;
+      --muted:#667085;
+      --line:#d7dce6;
+      --accent:#3157d5;
+      --accent2:#eef2ff;
+      --ok:#137a4b;
+      --warn:#9a6700;
+      --shadow:0 14px 38px rgba(30,40,70,.10);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .wrap{width:min(960px,calc(100% - 28px));margin:36px auto}
+    .card{background:var(--card);border:1px solid #e5e8ef;border-radius:20px;box-shadow:var(--shadow);padding:26px}
+    h1{margin:0 0 8px;font-size:clamp(25px,4vw,34px)}
+    .lead{margin:0 0 22px;color:var(--muted);line-height:1.5}
+    .top-grid{display:grid;grid-template-columns:minmax(220px,300px) auto auto;gap:10px;align-items:end}
+    label{display:block;font-size:13px;font-weight:800;margin-bottom:6px}
+    input[type="number"]{
+      width:100%;height:46px;border:1px solid #cfd5e2;border-radius:11px;padding:0 13px;
+      font-size:17px;outline:none;background:#fff
+    }
+    input[type="number"]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(49,87,213,.12)}
+    button{
+      height:46px;border:0;border-radius:11px;padding:0 16px;font-size:14px;font-weight:800;cursor:pointer
+    }
+    .primary{background:var(--accent);color:#fff}
+    .secondary{background:var(--accent2);color:#2947b8;border:1px solid #d7defc}
+    .ghost{background:#fff;color:#344054;border:1px solid #d0d5dd}
+    .settings{
+      margin:18px 0 22px;border:1px solid #e1e5ee;border-radius:14px;background:#fafbfe;overflow:hidden
+    }
+    .settings summary{
+      cursor:pointer;list-style:none;padding:15px 16px;font-weight:800;display:flex;justify-content:space-between;align-items:center
+    }
+    .settings summary::-webkit-details-marker{display:none}
+    .settings-body{border-top:1px solid #e5e8ef;padding:16px}
+    .threshold-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:12px}
+    .threshold-box{background:#fff;border:1px solid #e1e5ee;border-radius:12px;padding:12px}
+    .threshold-box small{display:block;color:var(--muted);margin-top:4px}
+    .switch-row{display:flex;align-items:center;gap:10px;margin-top:15px;padding-top:15px;border-top:1px solid #e5e8ef}
+    .switch-row input{width:18px;height:18px}
+    .settings-actions{display:flex;gap:10px;margin-top:15px;flex-wrap:wrap}
+    .table-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 12px}
+    .table-head h2{margin:0;font-size:20px}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:13px;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:520px;font-size:16px}
+    th,td{padding:11px 14px;text-align:center;border-bottom:1px solid var(--line)}
+    th{background:#f0f3f8;font-weight:800}
+    tbody tr:last-child td{border-bottom:0}
+    td:first-child{font-weight:900}
+    .status{min-height:22px;margin-top:10px;color:var(--ok);font-size:14px;font-weight:700}
+    .note{margin-top:12px;color:var(--muted);font-size:13px;line-height:1.45}
+    .mini{color:var(--muted);font-size:12px}
+    @media(max-width:760px){
+      .top-grid{grid-template-columns:1fr}
+      .threshold-grid{grid-template-columns:1fr 1fr}
+      .table-head{flex-direction:column;align-items:stretch}
+    }
+    @media(max-width:480px){
+      .threshold-grid{grid-template-columns:1fr}
+      .card{padding:18px}
+      .wrap{margin:18px auto}
+    }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <section class="card">
+    <h1>Převod bodů na známky</h1>
+    <p class="lead">
+      Zadej maximální počet bodů a aplikace vytvoří přehlednou tabulku pro Word.
+      Výchozí hranice jsou 85 %, 67 %, 49 % a 33 %. Nastavení se automaticky ukládá v prohlížeči.
+    </p>
+
+    <div class="top-grid">
+      <div>
+        <label for="maxPoints">Celkový počet bodů</label>
+        <input id="maxPoints" type="number" min="1" step="0.5" value="12">
+      </div>
+      <button id="generateBtn" class="primary" type="button">Vytvořit tabulku</button>
+      <button id="copyBtn" class="secondary" type="button">Kopírovat do Wordu</button>
+    </div>
+
+    <details class="settings" id="settingsPanel">
+      <summary>
+        <span>Nastavení hodnocení</span>
+        <span class="mini">automaticky se ukládá</span>
+      </summary>
+      <div class="settings-body">
+        <div class="threshold-grid">
+          <div class="threshold-box">
+            <label for="t1">Hranice pro 1</label>
+            <input id="t1" type="number" min="0" max="100" step="0.1" value="85">
+            <small>Výchozí: 85 %</small>
+          </div>
+          <div class="threshold-box">
+            <label for="t2">Hranice pro 2</label>
+            <input id="t2" type="number" min="0" max="100" step="0.1" value="67">
+            <small>Výchozí: 67 %</small>
+          </div>
+          <div class="threshold-box">
+            <label for="t3">Hranice pro 3</label>
+            <input id="t3" type="number" min="0" max="100" step="0.1" value="49">
+            <small>Výchozí: 49 %</small>
+          </div>
+          <div class="threshold-box">
+            <label for="t4">Hranice pro 4</label>
+            <input id="t4" type="number" min="0" max="100" step="0.1" value="33">
+            <small>Výchozí: 33 %</small>
+          </div>
+        </div>
+
+        <label class="switch-row">
+          <input id="useMinus" type="checkbox" checked>
+          <span>
+            <strong>Používat mínusové známky</strong><br>
+            <span class="mini">Nejbližší půlbod k hranici dostane 1−, 2−, 3− nebo 4−.</span>
+          </span>
+        </label>
+
+        <div class="settings-actions">
+          <button id="applyBtn" class="primary" type="button">Použít nastavení</button>
+          <button id="resetBtn" class="ghost" type="button">Obnovit výchozí</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="table-head">
+      <h2 id="tableTitle">Hodnocení při maximu 12 bodů</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table id="gradeTable">
+        <thead>
+          <tr>
+            <th>Známka</th>
+            <th>Body</th>
+            <th>Procenta</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="status" class="status" aria-live="polite"></div>
+    <p class="note">
+      Tabulka se kopíruje jako formátovaná HTML tabulka, takže se při vložení do Wordu zachová jako skutečná tabulka.
+      Body se vyhodnocují po 0,5 bodu.
+    </p>
+  </section>
+</main>
+
+<script>
+const DEFAULTS = {
+  maxPoints: 12,
+  t1: 85,
+  t2: 67,
+  t3: 49,
+  t4: 33,
+  useMinus: true
+};
+
+const STORAGE_KEY = 'gradeTableSettingsV1';
+
+const el = id => document.getElementById(id);
+const tbody = document.querySelector('#gradeTable tbody');
+
+function loadSettings(){
+  try{
+    return {...DEFAULTS, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')};
+  }catch{
+    return {...DEFAULTS};
+  }
+}
+
+function saveSettings(){
+  const s = {
+    maxPoints: parseFloat(el('maxPoints').value) || DEFAULTS.maxPoints,
+    t1: parseFloat(el('t1').value),
+    t2: parseFloat(el('t2').value),
+    t3: parseFloat(el('t3').value),
+    t4: parseFloat(el('t4').value),
+    useMinus: el('useMinus').checked
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+function putSettings(s){
+  el('maxPoints').value = s.maxPoints;
+  el('t1').value = s.t1;
+  el('t2').value = s.t2;
+  el('t3').value = s.t3;
+  el('t4').value = s.t4;
+  el('useMinus').checked = s.useMinus;
+}
+
+function fmtNum(n){
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',');
+}
+
+function fmtPct(n){
+  const r = Math.round(n * 10) / 10;
+  return (Number.isInteger(r) ? String(r) : r.toFixed(1).replace('.', ',')) + ' %';
+}
+
+function nearestHalf(points){
+  return Math.round(points * 2) / 2;
+}
+
+function validateThresholds(t){
+  return t.t1 > t.t2 && t.t2 > t.t3 && t.t3 > t.t4 &&
+         t.t1 <= 100 && t.t4 >= 0;
+}
+
+function getConfig(){
+  return {
+    max: parseFloat(el('maxPoints').value),
+    t1: parseFloat(el('t1').value),
+    t2: parseFloat(el('t2').value),
+    t3: parseFloat(el('t3').value),
+    t4: parseFloat(el('t4').value),
+    useMinus: el('useMinus').checked
+  };
+}
+
+function minusScores(cfg){
+  return {
+    '1−': nearestHalf(cfg.max * cfg.t1 / 100),
+    '2−': nearestHalf(cfg.max * cfg.t2 / 100),
+    '3−': nearestHalf(cfg.max * cfg.t3 / 100),
+    '4−': nearestHalf(cfg.max * cfg.t4 / 100)
+  };
+}
+
+function gradeFor(score, cfg){
+  const pct = score / cfg.max * 100;
+
+  if(cfg.useMinus){
+    const m = minusScores(cfg);
+
+    // Pokud se kvůli velmi malému maximu dvě hranice zaokrouhlí
+    // na stejný půlbod, má přednost lepší známka.
+    if(score === m['1−']) return '1−';
+    if(score === m['2−']) return '2−';
+    if(score === m['3−']) return '3−';
+    if(score === m['4−']) return '4−';
+
+    if(score > m['1−']) return '1';
+    if(score > m['2−']) return '2';
+    if(score > m['3−']) return '3';
+    if(score > m['4−']) return '4';
+    return '5';
+  }
+
+  if(pct > cfg.t1) return '1';
+  if(pct > cfg.t2) return '2';
+  if(pct > cfg.t3) return '3';
+  if(pct >= cfg.t4) return '4';
+  return '5';
+}
+
+function rangeText(values, max){
+  if(!values.length) return '—';
+  const a = values[0], b = values[values.length - 1];
+  const pts = a === b ? fmtNum(a) : `${fmtNum(a)}–${fmtNum(b)}`;
+  const pa = a / max * 100, pb = b / max * 100;
+  const pct = a === b ? fmtPct(pa) : `${fmtPct(pa).replace(' %','')}–${fmtPct(pb)}`;
+  return {pts, pct};
+}
+
+function generate(){
+  const cfg = getConfig();
+  const status = el('status');
+  status.textContent = '';
+
+  if(!Number.isFinite(cfg.max) || cfg.max <= 0){
+    status.style.color = '#b42318';
+    status.textContent = 'Zadej platný celkový počet bodů.';
+    return;
+  }
+
+  if(!validateThresholds(cfg)){
+    status.style.color = '#b42318';
+    status.textContent = 'Hranice musí být sestupně: 1 > 2 > 3 > 4.';
+    return;
+  }
+
+  const grades = cfg.useMinus
+    ? ['1','1−','2','2−','3','3−','4','4−','5']
+    : ['1','2','3','4','5'];
+
+  const buckets = Object.fromEntries(grades.map(g => [g, []]));
+
+  for(let score = 0; score <= cfg.max + 1e-9; score += 0.5){
+    const s = Math.round(score * 2) / 2;
+    if(s > cfg.max + 1e-9) break;
+    const g = gradeFor(s, cfg);
+    if(buckets[g]) buckets[g].push(s);
+  }
+
+  // Pokud maximum není násobkem 0,5, přidáme i přesné maximum.
+  if(Math.abs((cfg.max * 2) - Math.round(cfg.max * 2)) > 1e-9){
+    const g = gradeFor(cfg.max, cfg);
+    if(buckets[g] && !buckets[g].includes(cfg.max)) buckets[g].push(cfg.max);
+  }
+
+  tbody.innerHTML = '';
+  grades.forEach(g => {
+    const vals = buckets[g].sort((a,b)=>a-b);
+    if(!vals.length) return;
+    const r = rangeText(vals, cfg.max);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${g}</td><td>${r.pts}</td><td>${r.pct}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  el('tableTitle').textContent = `Hodnocení při maximu ${fmtNum(cfg.max)} bodů`;
+  saveSettings();
+  status.style.color = '#137a4b';
+  status.textContent = 'Tabulka byla aktualizována.';
+}
+
+async function copyTable(){
+  const table = el('gradeTable');
+  const cfg = getConfig();
+  const titleText = `Hodnocení při maximu ${fmtNum(cfg.max)} bodů`;
+
+  const clone = table.cloneNode(true);
+  clone.style.borderCollapse = 'collapse';
+  clone.style.fontFamily = 'Arial, sans-serif';
+  clone.style.fontSize = '11pt';
+
+  clone.querySelectorAll('th,td').forEach(cell => {
+    cell.style.border = '1px solid #666';
+    cell.style.padding = '6px 10px';
+    cell.style.textAlign = 'center';
+  });
+  clone.querySelectorAll('th').forEach(cell => {
+    cell.style.fontWeight = 'bold';
+    cell.style.background = '#eeeeee';
+  });
+
+  const wrapper = document.createElement('div');
+  const titleEl = document.createElement('p');
+  titleEl.textContent = titleText;
+  titleEl.style.fontFamily = 'Arial, sans-serif';
+  titleEl.style.fontSize = '11pt';
+  titleEl.style.fontWeight = 'bold';
+  wrapper.appendChild(titleEl);
+  wrapper.appendChild(clone);
+
+  const html = wrapper.outerHTML;
+  const textRows = Array.from(table.rows).map(row =>
+    Array.from(row.cells).map(c => c.innerText).join('\t')
+  ).join('\n');
+
+  try{
+    if(navigator.clipboard && window.ClipboardItem){
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], {type:'text/html'}),
+          'text/plain': new Blob([titleText + '\n' + textRows], {type:'text/plain'})
+        })
+      ]);
+    }else{
+      const temp = document.createElement('div');
+      temp.contentEditable = true;
+      temp.style.position = 'fixed';
+      temp.style.left = '-9999px';
+      temp.innerHTML = html;
+      document.body.appendChild(temp);
+      const range = document.createRange();
+      range.selectNodeContents(temp);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand('copy');
+      sel.removeAllRanges();
+      temp.remove();
+    }
+    el('status').style.color = '#137a4b';
+    el('status').textContent = 'Tabulka je ve schránce a můžeš ji vložit do Wordu.';
+  }catch(e){
+    el('status').style.color = '#b42318';
+    el('status').textContent = 'Kopírování se nepodařilo. Zkus stránku otevřít v Chrome nebo Edge.';
+  }
+}
+
+el('generateBtn').addEventListener('click', generate);
+el('applyBtn').addEventListener('click', generate);
+el('copyBtn').addEventListener('click', copyTable);
+
+el('resetBtn').addEventListener('click', () => {
+  putSettings(DEFAULTS);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULTS));
+  generate();
+  el('status').textContent = 'Obnoveno výchozí nastavení.';
+});
+
+['maxPoints','t1','t2','t3','t4'].forEach(id => {
+  el(id).addEventListener('change', generate);
+});
+el('useMinus').addEventListener('change', generate);
+
+const stored = loadSettings();
+putSettings(stored);
+generate();
+</script>
+</body>
+</html>
